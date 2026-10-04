@@ -1,10 +1,18 @@
+// ===============================
+// GEMINI CHATBOT CONFIGURATION
+// ===============================
+
 const API_KEY = "AQ.Ab8RN6IPsSGVXBZbRqcYVkWWB7vDokh1XRa8IwsuvvLCzLIkuw";
 
 const MODEL = "gemini-3.8-flash";
 
 const API_URL =
-    `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${API_KEY}`;
+    `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
 
+
+// ===============================
+// DOM ELEMENTS
+// ===============================
 
 const chatBox = document.getElementById("chatBox");
 const messageInput = document.getElementById("messageInput");
@@ -12,19 +20,40 @@ const sendBtn = document.getElementById("sendBtn");
 const clearBtn = document.getElementById("clearBtn");
 
 
-// Send message
+// ===============================
+// CONVERSATION HISTORY
+// ===============================
+
+let conversationHistory = [];
+
+
+// ===============================
+// SEND MESSAGE
+// ===============================
+
 async function sendMessage() {
 
     const message = messageInput.value.trim();
 
     if (!message) return;
 
-    // Add user message
+    // Add user message to screen
     addMessage("You", message, true);
 
+    // Add user message to Gemini history
+    conversationHistory.push({
+        role: "user",
+        parts: [
+            {
+                text: message
+            }
+        ]
+    });
+
+    // Clear input
     messageInput.value = "";
 
-    // Disable button
+    // Disable send button
     sendBtn.disabled = true;
 
     // Show loading
@@ -37,19 +66,19 @@ async function sendMessage() {
             method: "POST",
 
             headers: {
-                "Content-Type": "application/json"
+                "Content-Type": "application/json",
+                "x-goog-api-key": API_KEY
             },
 
             body: JSON.stringify({
-                contents: [
-                    {
-                        parts: [
-                            {
-                                text: message
-                            }
-                        ]
-                    }
-                ]
+
+                contents: conversationHistory,
+
+                generationConfig: {
+                    temperature: 0.7,
+                    maxOutputTokens: 2048
+                }
+
             })
 
         });
@@ -57,18 +86,24 @@ async function sendMessage() {
 
         const data = await response.json();
 
-        console.log("Gemini Response:", data);
+        console.log("Gemini API Response:", data);
 
 
         // Remove loading message
         loadingMessage.remove();
 
 
+        // ===============================
+        // ERROR HANDLING
+        // ===============================
+
         if (!response.ok) {
+
+            console.error("Gemini API Error:", data);
 
             const errorMessage =
                 data?.error?.message ||
-                "Something went wrong.";
+                `Request failed with status ${response.status}`;
 
             addMessage(
                 "Gemini",
@@ -76,19 +111,28 @@ async function sendMessage() {
                 false
             );
 
+            // Remove failed user message from history
+            conversationHistory.pop();
+
             return;
         }
 
 
+        // ===============================
+        // GET GEMINI RESPONSE
+        // ===============================
+
         const reply =
-            data?.candidates?.[0]?.content?.parts?.[0]?.text;
+            data?.candidates?.[0]?.content?.parts
+                ?.map(part => part.text || "")
+                .join("");
 
 
         if (!reply) {
 
             addMessage(
                 "Gemini",
-                "❌ Gemini did not return a response.",
+                "❌ Gemini returned an empty response.",
                 false
             );
 
@@ -96,19 +140,37 @@ async function sendMessage() {
         }
 
 
+        // ===============================
+        // ADD MODEL RESPONSE TO HISTORY
+        // ===============================
+
+        conversationHistory.push({
+            role: "model",
+            parts: [
+                {
+                    text: reply
+                }
+            ]
+        });
+
+
+        // Show Gemini response
         addMessage("Gemini", reply, false);
 
     }
 
     catch (error) {
 
-        console.error(error);
+        console.error("Network Error:", error);
 
         loadingMessage.remove();
 
+        // Remove failed user message
+        conversationHistory.pop();
+
         addMessage(
             "Gemini",
-            "❌ Network error. Please try again.",
+            "❌ Network error. Please check your internet connection and try again.",
             false
         );
 
@@ -121,11 +183,13 @@ async function sendMessage() {
         messageInput.focus();
 
     }
-
 }
 
 
-// Add message to chat
+// ===============================
+// ADD MESSAGE TO CHAT
+// ===============================
+
 function addMessage(sender, text, isUser) {
 
     const messageDiv = document.createElement("div");
@@ -136,6 +200,7 @@ function addMessage(sender, text, isUser) {
             : "message bot-message";
 
 
+    // Avatar
     const avatar = document.createElement("div");
 
     avatar.className = "avatar";
@@ -144,11 +209,13 @@ function addMessage(sender, text, isUser) {
         isUser ? "👤" : "✦";
 
 
+    // Message content
     const content = document.createElement("div");
 
     content.className = "message-content";
 
 
+    // Sender name
     const senderDiv = document.createElement("div");
 
     senderDiv.className = "sender";
@@ -156,6 +223,7 @@ function addMessage(sender, text, isUser) {
     senderDiv.textContent = sender;
 
 
+    // Message text
     const textDiv = document.createElement("div");
 
     textDiv.className = "text";
@@ -163,19 +231,27 @@ function addMessage(sender, text, isUser) {
     textDiv.textContent = text;
 
 
+    // Build message
     content.appendChild(senderDiv);
+
     content.appendChild(textDiv);
 
     messageDiv.appendChild(avatar);
+
     messageDiv.appendChild(content);
 
     chatBox.appendChild(messageDiv);
 
+
+    // Scroll
     scrollToBottom();
 }
 
 
-// Loading message
+// ===============================
+// LOADING MESSAGE
+// ===============================
+
 function addLoadingMessage() {
 
     const messageDiv = document.createElement("div");
@@ -206,7 +282,10 @@ function addLoadingMessage() {
 }
 
 
-// Scroll chat
+// ===============================
+// SCROLL TO BOTTOM
+// ===============================
+
 function scrollToBottom() {
 
     chatBox.scrollTop = chatBox.scrollHeight;
@@ -214,12 +293,22 @@ function scrollToBottom() {
 }
 
 
-// Send button
-sendBtn.addEventListener("click", sendMessage);
+// ===============================
+// SEND BUTTON
+// ===============================
+
+sendBtn.addEventListener("click", function () {
+
+    sendMessage();
+
+});
 
 
-// Enter to send
-messageInput.addEventListener("keydown", function(event) {
+// ===============================
+// ENTER KEY
+// ===============================
+
+messageInput.addEventListener("keydown", function (event) {
 
     if (event.key === "Enter" && !event.shiftKey) {
 
@@ -232,8 +321,13 @@ messageInput.addEventListener("keydown", function(event) {
 });
 
 
-// Clear chat
-clearBtn.addEventListener("click", function() {
+// ===============================
+// CLEAR CHAT
+// ===============================
+
+clearBtn.addEventListener("click", function () {
+
+    conversationHistory = [];
 
     chatBox.innerHTML = `
         <div class="message bot-message">
@@ -256,5 +350,7 @@ clearBtn.addEventListener("click", function() {
 
         </div>
     `;
+
+    messageInput.focus();
 
 });
