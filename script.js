@@ -2,7 +2,7 @@
 // GEMINI CHATBOT CONFIGURATION
 // ===============================
 
-const API_KEY = "AQ.Ab8RN6IPsSGVXBZbRqcYVkWWB7vDokh1XRa8IwsuvvLCzLIkuw";
+const API_KEY = "AQ.Ab8RN6KCcNRNr-QfFlEbOZ4Bqb6fV-ywp51oDJz70-H339Zj_Q";
 
 const MODEL = "gemini-3.8-flash";
 
